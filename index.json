@@ -2,7 +2,7 @@
     {
         "name": "腾讯漫画",
         "fileName": "tencent_comic.js",
-        "key": "tencent_comic"
+        "key": "tencent_comic",
         "version": "1.0.0",
         "description": "腾讯漫画源"
     },
