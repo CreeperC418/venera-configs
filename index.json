@@ -1,5 +1,11 @@
 [
     {
+        "name": "腾讯漫画📱",
+        "url": "https://raw.githubusercontent.com/你的用户名/仓库名/main/tencent_comic.js",
+        "version": "1.0.0",
+        "description": "腾讯漫画源"
+    },
+    {
         "name": "拷贝漫画",
         "fileName": "copy_manga.js",
         "key": "copy_manga",
