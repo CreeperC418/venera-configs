@@ -2,7 +2,7 @@
 class TencentComicDebugSource extends ComicSource {
     name = "腾讯漫画调试版"
     key = "tencent_comic_debug"
-    version = "1.0.0"
+    version = "1.0.1"
     
     init() {
         console.log("=== 腾讯漫画调试版初始化 ===");
