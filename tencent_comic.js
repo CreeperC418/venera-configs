@@ -1,180 +1,292 @@
-// tencent_comic_debug.js
-class TencentComicDebugSource extends ComicSource {
-    name = "腾讯漫画调试版"
+class TencentComicSource extends ComicSource {
+    name = "腾讯漫画📱"
     key = "tencent_comic"
-    version = "1.0.1"
-    
-    init() {
-        console.log("=== 腾讯漫画调试版初始化 ===");
-    }
-    
+    version = "1.0.0"
+    minAppVersion = "1.0.0"
+    url = "https://m.ac.qq.com"
+
+    // 不需要init函数，除非有特殊初始化需求
+
+    // 搜索功能
     search = {
         load: async (keyword, options, page) => {
-            console.log("=== 开始搜索 ===");
-            console.log("关键词:", keyword);
-            console.log("页码:", page);
-            console.log("选项:", options);
+            // 构建搜索URL
+            const searchUrl = `https://m.ac.qq.com/search/result?word=${encodeURIComponent(keyword)}&page=${page}`;
             
             try {
-                // 1. 构建URL
-                const searchUrl = `https://m.ac.qq.com/search/result?word=${encodeURIComponent(keyword)}&page=${page || 1}`;
-                console.log("搜索URL:", searchUrl);
+                // 使用Network API获取数据
+                const html = await Network.get(searchUrl);
                 
-                // 2. 设置请求头
-                const headers = {
-                    "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                    "Accept-Language": "zh-CN,zh;q=0.9",
-                    "Accept-Encoding": "gzip",
-                    "Connection": "keep-alive",
-                    "Upgrade-Insecure-Requests": "1",
-                    "Referer": "https://m.ac.qq.com/"
-                };
-                
-                // 3. 发送请求
-                console.log("发送请求...");
-                const startTime = Date.now();
-                const html = await Network.get(searchUrl, { 
-                    headers: headers,
-                    timeout: 15000
-                });
-                const endTime = Date.now();
-                
-                console.log("请求完成，耗时:", endTime - startTime, "ms");
-                console.log("响应长度:", html?.length || 0);
-                
-                if (!html) {
-                    console.error("响应为空!");
-                    return { comics: [], maxPage: 0 };
-                }
-                
-                if (html.length < 500) {
-                    console.error("响应太短，可能是错误页面:");
-                    console.log(html.substring(0, 500));
-                    return { comics: [], maxPage: 0 };
-                }
-                
-                // 4. 检查是否包含特定内容
-                if (html.includes("搜索结果")) {
-                    console.log("✓ 页面包含'搜索结果'");
-                } else {
-                    console.log("✗ 页面不包含'搜索结果'");
-                }
-                
-                if (html.includes("comic-link")) {
-                    console.log("✓ 页面包含'comic-link'");
-                } else {
-                    console.log("✗ 页面不包含'comic-link'");
-                }
-                
-                // 5. 尝试简单解析
-                console.log("尝试解析HTML...");
+                // 解析HTML获取漫画列表
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, "text/html");
                 
-                // 检查文档结构
-                console.log("文档标题:", doc.title);
-                
-                // 查找所有链接
-                const allLinks = doc.querySelectorAll("a");
-                console.log("总链接数:", allLinks.length);
-                
-                // 查找可能包含漫画的链接
-                const comicLinks = [];
-                allLinks.forEach((link, index) => {
-                    const href = link.href;
-                    const text = link.textContent.trim();
-                    
-                    if (href && href.includes('/comic/')) {
-                        comicLinks.push({
-                            index: index,
-                            href: href,
-                            text: text.substring(0, 50)
-                        });
-                    }
-                });
-                
-                console.log("找到漫画相关链接:", comicLinks.length);
-                comicLinks.slice(0, 5).forEach(link => {
-                    console.log(`  [${link.index}] ${link.text} -> ${link.href}`);
-                });
-                
-                // 6. 构建测试结果
                 const comics = [];
+                const items = doc.querySelectorAll(".comic-link, .lst_searchResult li, #list_update li");
                 
-                // 如果找到了链接，构建漫画对象
-                if (comicLinks.length > 0) {
-                    for (let i = 0; i < Math.min(3, comicLinks.length); i++) {
-                        const link = comicLinks[i];
-                        const comic = new Comic();
-                        
-                        comic.id = link.href.match(/\/comic\/index\/id\/(\d+)/)?.[1] || 
-                                  link.href.match(/id=(\d+)/)?.[1] || 
-                                  `link_${i}`;
-                        comic.title = link.text || `漫画 ${i+1}`;
-                        comic.url = link.href;
-                        comic.cover = `https://via.placeholder.com/150x200/4ECDC4/FFFFFF?text=${i+1}`;
-                        
+                for (const item of items) {
+                    const comic = new Comic();
+                    
+                    // 获取漫画标题
+                    const titleElem = item.querySelector(".comic-title");
+                    if (titleElem) {
+                        comic.title = titleElem.textContent.trim();
+                    }
+                    
+                    // 获取漫画链接和ID
+                    const linkElem = item.querySelector("a");
+                    if (linkElem && linkElem.href) {
+                        comic.id = linkElem.href.match(/\/comic\/index\/id\/(\d+)/)?.[1] || 
+                                  linkElem.href.match(/id=(\d+)/)?.[1] ||
+                                  linkElem.href;
+                        comic.url = linkElem.href;
+                    }
+                    
+                    // 获取封面
+                    const imgElem = item.querySelector(".comic-cover img, img");
+                    if (imgElem && imgElem.src) {
+                        comic.cover = imgElem.src;
+                    }
+                    
+                    // 获取作者和标签
+                    const tagElem = item.querySelector(".comic-tag");
+                    if (tagElem) {
+                        comic.author = tagElem.textContent.trim();
+                    }
+                    
+                    // 获取最新章节
+                    const chapterElem = item.querySelector(".chapter, .comic-update");
+                    if (chapterElem) {
+                        comic.latestChapter = chapterElem.textContent.trim().replace(/更新/, "");
+                    }
+                    
+                    if (comic.title && comic.id) {
                         comics.push(comic);
                     }
-                } else {
-                    // 返回测试数据
-                    comics.push({
-                        id: "test_001",
-                        title: "测试漫画 - " + keyword,
-                        cover: "https://via.placeholder.com/150x200/FF6B6B/FFFFFF?text=测试",
-                        author: "测试作者",
-                        description: "这是一个测试漫画，因为未能解析到真实结果"
-                    });
                 }
                 
-                console.log("返回漫画数:", comics.length);
-                
+                // 返回结果（需要估算最大页数）
                 return {
                     comics: comics,
-                    maxPage: 10
+                    maxPage: 10 // 这里应该根据实际分页信息计算
                 };
                 
             } catch (error) {
-                console.error("=== 搜索过程中出错 ===");
-                console.error("错误类型:", error.constructor.name);
-                console.error("错误信息:", error.message);
-                console.error("堆栈:", error.stack);
-                
-                // 返回空结果而不是抛出错误
-                return {
-                    comics: [],
-                    maxPage: 0
-                };
+                console.error("搜索失败:", error);
+                return { comics: [], maxPage: 0 };
             }
         },
         
         optionList: []
     }
-    
-    // 漫画详情（简化版）
+
+    // 探索页面（分类）
+    explore = [
+        {
+            title: "腾讯漫画分类",
+            type: "multiPartPage",
+            
+            load: async (page) => {
+                // 定义各个分类
+                const categories = [
+                    {
+                        title: "条漫",
+                        comics: await this.loadCategory("tm", "upt", 1)
+                    },
+                    {
+                        title: "独家",
+                        comics: await this.loadCategory("dj", "upt", 1)
+                    },
+                    {
+                        title: "完结",
+                        comics: await this.loadCategory("wj", "upt", 1)
+                    },
+                    // 可以添加更多分类...
+                    {
+                        title: "飙升榜",
+                        viewMore: "ranking/rise"
+                    },
+                    {
+                        title: "畅销榜", 
+                        viewMore: "ranking/pay"
+                    }
+                ];
+                
+                return categories;
+            }
+        }
+    ]
+
+    // 漫画详情
     comic = {
         loadInfo: async (id) => {
-            console.log("加载漫画详情:", id);
+            const url = `https://m.ac.qq.com/comic/index/id/${id}`;
+            const html = await Network.get(url);
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
             
             const details = new ComicDetails();
             details.id = id;
-            details.title = "测试漫画详情";
-            details.description = "这是一个测试";
-            details.cover = "https://via.placeholder.com/300x400";
-            details.chapters = [
-                { id: "c1", title: "第1话" },
-                { id: "c2", title: "第2话" }
-            ];
+            
+            // 解析标题
+            const titleElem = doc.querySelector(".head-title-tags h1");
+            if (titleElem) {
+                details.title = titleElem.textContent.trim();
+            }
+            
+            // 解析作者
+            const authorElem = doc.querySelector(".head-info-author");
+            if (authorElem) {
+                details.author = authorElem.textContent.trim().replace(/作者：/, "");
+            }
+            
+            // 解析简介
+            const descElem = doc.querySelector(".head-info-desc");
+            if (descElem) {
+                details.description = descElem.textContent.trim();
+            }
+            
+            // 解析封面
+            const coverElem = doc.querySelector(".head-info-cover img");
+            if (coverElem && coverElem.src) {
+                details.cover = coverElem.src;
+            }
+            
+            // 解析章节列表
+            const chapters = [];
+            const chapterElems = doc.querySelectorAll(".chapter-wrap-list.normal > li");
+            
+            for (const elem of chapterElems) {
+                const link = elem.querySelector("a");
+                if (link) {
+                    const chapter = new Chapter();
+                    chapter.title = link.textContent.trim()
+                        .replace(/chapter-link/g, '')
+                        .replace(/\s/g, '')
+                        .replace(/lock/g, '💲');
+                    chapter.id = link.href.match(/cid=(\d+)/)?.[1] || link.href;
+                    chapter.url = link.href;
+                    chapters.push(chapter);
+                }
+            }
+            
+            details.chapters = chapters;
+            
+            // 解析标签
+            const tagElems = doc.querySelectorAll(".head-title-tags .tag");
+            const tags = [];
+            for (const tagElem of tagElems) {
+                const tag = tagElem.textContent.trim();
+                if (tag) {
+                    tags.push({ namespace: "分类", tag: tag });
+                }
+            }
+            details.tags = tags;
+            
+            // 获取最新章节
+            const latestElem = doc.querySelector(".mod-chapter-title span");
+            if (latestElem) {
+                details.latestChapter = latestElem.textContent.trim().replace(/，/, "");
+            }
             
             return details;
         },
         
         loadEp: async (comicId, epId) => {
-            console.log("加载章节:", comicId, epId);
-            return {
-                images: ["https://via.placeholder.com/800x1200"]
-            };
+            // 这里是图片解密的复杂部分
+            // 需要重写原来的JavaScript解密代码
+            
+            const url = epId.includes("http") ? epId : `https://m.ac.qq.com/comic/chapter/id/${comicId}/cid/${epId}`;
+            const html = await Network.get(url);
+            
+            // 提取加密的数据
+            const dataMatch = html.match(/data:\s*'(.*?)'/);
+            const nonceMatch = html.match(/<script>window\.nonce\s*=\s*(.*?)<\/script>/);
+            
+            if (!dataMatch || !nonceMatch) {
+                throw new Error("无法解析图片数据");
+            }
+            
+            let data = dataMatch[1];
+            let nonce = eval(nonceMatch[1]); // 执行nonce计算
+            
+            // 解密逻辑（参考原来的代码）
+            const N = String(nonce).match(/\d+\w+/g);
+            if (N) {
+                let jlen = N.length;
+                while (jlen) {
+                    jlen -= 1;
+                    const jlocate = parseInt(N[jlen].match(/(\d+)/)[0]) & 255;
+                    const jstr = N[jlen].replace(/\d+/g, '');
+                    data = data.substring(0, parseInt(jlocate)) + 
+                           data.substring(parseInt(jlocate) + jstr.length, data.length);
+                }
+            }
+            
+            // Base64解码
+            const decoded = atob(data);
+            const picListMatch = decoded.match(/"picture":(\[{"url".*\])/);
+            
+            if (!picListMatch) {
+                throw new Error("无法解析图片列表");
+            }
+            
+            const picList = JSON.parse(picListMatch[1]);
+            const images = picList.map(pic => pic.url);
+            
+            return { images: images };
+        },
+        
+        // 支持链接解析
+        link: {
+            domains: ['ac.qq.com', 'm.ac.qq.com'],
+            
+            linkToId: (url) => {
+                // 从URL中提取漫画ID
+                const idMatch = url.match(/\/comic\/index\/id\/(\d+)/) || 
+                               url.match(/id=(\d+)/);
+                return idMatch ? idMatch[1] : null;
+            }
         }
     }
+
+    // 辅助函数：加载分类
+    async loadCategory(type, rank, page) {
+        const url = `https://m.ac.qq.com/category/listAll?type=${type}&rank=${rank}&pageSize=30&page=${page}`;
+        const html = await Network.get(url);
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        
+        const comics = [];
+        const items = doc.querySelectorAll(".comic-link");
+        
+        for (const item of items.slice(0, 10)) { // 只取前10个
+            const comic = new Comic();
+            
+            const titleElem = item.querySelector(".comic-title");
+            if (titleElem) {
+                comic.title = titleElem.textContent.trim();
+            }
+            
+            const linkElem = item.querySelector("a");
+            if (linkElem && linkElem.href) {
+                comic.id = linkElem.href.match(/\/comic\/index\/id\/(\d+)/)?.[1] || linkElem.href;
+                comic.url = linkElem.href;
+            }
+            
+            const imgElem = item.querySelector(".comic-cover img");
+            if (imgElem && imgElem.src) {
+                comic.cover = imgElem.src;
+            }
+            
+            if (comic.title && comic.id) {
+                comics.push(comic);
+            }
+        }
+        
+        return comics;
+    }
 }
+
+// 注册源
+registerSource(TencentComicSource);
