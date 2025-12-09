@@ -1,7 +1,7 @@
 // tencent_comic_debug.js
 class TencentComicDebugSource extends ComicSource {
     name = "腾讯漫画调试版"
-    key = "tencent_comic_debug"
+    key = "tencent_comic"
     version = "1.0.1"
     
     init() {
